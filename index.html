@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Binlight Stickman Duel — 2D Ragdoll Arena</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(17, 24, 39, 0.72);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --accent: #38bdf8;
+      --accent-2: #a855f7;
+      --danger: #f43f5e;
+      --success: #10b981;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 20%, #172554 0%, var(--bg-dark) 75%);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+    }
+
+    canvas#gameCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+
+    .ui-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .glass {
+      pointer-events: auto;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+
+    .menu-card {
+      width: min(800px, 96vw);
+      max-height: 92vh;
+      overflow-y: auto;
+      padding: 28px 32px;
+      position: relative;
+    }
+
+    .brand-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .game-title {
+      font-size: clamp(1.7rem, 4vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #38bdf8, #a855f7, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .game-sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .copyright-badge {
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #7dd3fc;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+      gap: 12px;
+    }
+
+    .btn {
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(30, 41, 59, 0.78);
+      color: var(--text);
+      padding: 13px 16px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      background: rgba(51, 65, 85, 0.92);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .btn:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #7c3aed);
+      border-color: transparent;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+    }
+
+    .btn-boss {
+      background: linear-gradient(135deg, #e11d48, #9333ea);
+      border-color: transparent;
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.22);
+      border-color: rgba(244, 63, 94, 0.5);
+      color: #fda4af;
+    }
+
+    .section-box {
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .sub-box {
+      background: rgba(2, 6, 23, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 10px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    select, input[type="text"] {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      outline: none;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    .weapon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+      gap: 10px;
+      max-height: 55vh;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .weapon-card {
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px;
+      cursor: pointer;
+      transition: 0.14s ease;
+    }
+
+    .weapon-card:hover, .weapon-card.selected {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.13);
+    }
+
+    .weapon-card h4 {
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+      color: #7dd3fc;
+    }
+
+    .weapon-card p {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.35;
+      margin-bottom: 4px;
+    }
+
+    .color-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.12s;
+    }
+
+    .color-dot.active {
+      border-color: #fff;
+      transform: scale(1.15);
+    }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+      display: none;
+    }
+
+    .hud-top {
+      position: absolute;
+      top: 12px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .scoreboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 8px 12px;
+      border-radius: 12px;
+    }
+
+    .score-chip {
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-controls-bar {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 8px 14px;
+      border-radius: 16px;
+      pointer-events: auto;
+    }
+
+    .skill-slot {
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      overflow: hidden;
+    }
+
+    .cd-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: #fbbf24;
+    }
+
+    #touchUI {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      display: none;
+    }
+
+    .joystick-zone {
+      position: fixed;
+      left: 26px;
+      bottom: 26px;
+      width: 136px;
+      height: 136px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 255, 255, 0.22);
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    .joystick-knob {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #38bdf8, #0284c7);
+      position: absolute;
+      left: 41px;
+      top: 41px;
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.45);
+      pointer-events: none;
+    }
+
+    .touch-actions {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      display: grid;
+      grid-template-columns: repeat(2, 68px);
+      gap: 12px;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    .touch-btn {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.26);
+      background: rgba(15, 23, 42, 0.78);
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.76rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .toggle-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .toggle-pill input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD TRONG TRẬN -->
+  <div id="hud">
+    <div class="hud-top">
+      <div class="scoreboard" id="scoreboard"></div>
+      <div style="display:flex;gap:8px;pointer-events:auto;">
+        <span class="copyright-badge" id="mapLabel">Bản đồ: Cầu Dung Nham</span>
+        <button class="btn btn-danger" style="padding:8px 14px;font-size:0.82rem;" onclick="exitToMenu()">Thoát Trận</button>
+      </div>
+    </div>
+
+    <div class="hud-controls-bar" id="pcSkillBar">
+      <div class="skill-slot" id="slot-s1"><span>C1</span><small>Chuột Phải</small></div>
+      <div class="skill-slot" id="slot-s2"><span>C2</span><small>Chuột Trái</small></div>
+      <div class="skill-slot" id="slot-s3"><span>C3</span><small>Phím E</small></div>
+      <div class="skill-slot" id="slot-shield"><span>KHIÊN</span><small>Phím F</small></div>
+    </div>
+  </div>
+
+  <!-- GIAO DIỆN CẢM ỨNG ĐIỆN THOẠI -->
+  <div id="touchUI">
+    <div class="joystick-zone" id="joystickZone">
+      <div class="joystick-knob" id="joystickKnob"></div>
+    </div>
+    <div class="touch-actions">
+      <button class="touch-btn" id="tBtnS1" style="border-color:#38bdf8;">CHIÊU 1</button>
+      <button class="touch-btn" id="tBtnS2" style="border-color:#a855f7;">CHIÊU 2</button>
+      <button class="touch-btn" id="tBtnS3" style="border-color:#f43f5e;">CHIÊU 3</button>
+      <button class="touch-btn" id="tBtnShield" style="border-color:#10b981;">KHIÊN</button>
+    </div>
+  </div>
+
+  <!-- LỚP MENU CHÍNH & CÁC MÀN HÌNH PHỤ -->
+  <div class="ui-layer" id="menuLayer">
+    <!-- MAIN MENU -->
+    <div class="menu-card glass" id="screen-main">
+      <div class="brand-header">
+        <div>
+          <div class="game-title">BINLIGHT STICKMAN DUEL</div>
+          <div class="game-sub">Đấu Trường Ragdoll 2D • 20 Vũ Khí • 25 HP (1 Đòn = 1 Máu) • Boss Fight</div>
+        </div>
+        <div class="copyright-badge">© Bản quyền: Binlight</div>
+      </div>
+
+      <div class="section-box row" style="margin-bottom:18px;">
+        <div>
+          <small style="color:var(--muted);">Vũ khí đang chọn:</small>
+          <div id="selectedWeaponName" style="font-weight:800;color:#38bdf8;font-size:1.05rem;">1. Kiếm Ánh Sáng (Laser Sword)</div>
+        </div>
+        <div class="row" id="colorPicker"></div>
+      </div>
+
+      <div class="menu-grid">
+        <button class="btn btn-primary" onclick="openScreen('screen-bot')">⚔️ Đấu Bot (Singleplayer)</button>
+        <button class="btn btn-boss" onclick="openScreen('screen-boss')">👹 Chế độ Boss Fight</button>
+        <button class="btn btn-primary" onclick="openScreen('screen-multi')">🌐 Chơi với bạn bè (1–4P)</button>
+        <button class="btn" onclick="openScreen('screen-fun')">🎪 Chế độ Giải trí</button>
+        <button class="btn" onclick="openScreen('screen-armory')">🗡️ Kho Vũ Khí (20 loại)</button>
+        <button class="btn" onclick="openScreen('screen-guide')">📖 Hướng dẫn & ⚙️ Cài đặt</button>
+      </div>
+    </div>
+
+    <!-- ĐẤU BOT -->
+    <div class="menu-card glass hidden" id="screen-bot">
+      <div class="brand-header">
+        <h2>⚔️ Đấu Bot (Singleplayer)</h2>
+        <button class="btn" onclick="openScreen('screen-main')">← Quay lại</button>
+      </div>
+      <div class="section-box">
+        <div class="row" style="margin-bottom:12px;">
+          <label>Độ khó Bot:</label>
+          <select id="botDifficulty">
+            <option value="easy">Dễ (Khởi động)</option>
+            <option value="medium" selected>Vừa (Cân bằng)</option>
+            <option value="hard">Khó (Siêu phản xạ)</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <label>Chế độ đấu:</label>
+          <select id="botMatchType">
+            <option value="1v1">1v1 Solo</option>
+            <option value="ffa">Hỗn chiến (1 người + 3 Bot)</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <label>Bản đồ đấu trường:</label>
+          <select id="botMapSelect">
+            <option value="lava_bridge">Sàn Bẫy Dung Nham (Rơi là KO)</option>
+            <option value="water_arena">Sàn Bẫy Nước Sâu (Đẩy văng xuống nước)</option>
+            <option value="flat_arena">Sàn Phẳng Truyền Thống</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="toggle-pill"><input type="checkbox" id="botHpEnabled" checked /> ❤️ Có thanh máu (25 HP • mỗi đòn trúng = -1 HP)</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="startBotMatch()">Bắt Đầu Đấu Ngay</button>
+    </div>
+
+    <!-- CHẾ ĐỘ BOSS FIGHT -->
+    <div class="menu-card glass hidden" id="screen-boss">
+      <div class="brand-header">
+        <h2>👹 Chế độ Boss Fight (Hợp Lực Hạ Boss)</h2>
+        <button class="btn" onclick="openScreen('screen-main')">← Quay lại</button>
+      </div>
+      <div class="section-box">
+        <p style="color:#cbd5e1;font-size:0.9rem;margin-bottom:12px;">
+          Hợp lực tấn công <strong>Titan Hủy Diệt</strong>! Mỗi đòn đánh trúng Boss gây <strong>1 sát thương</strong>, Boss tung sóng xung kích và hất văng mạnh.
+        </p>
+        <div class="row" style="margin-bottom:12px;">
+          <label>Đồng minh hỗ trợ (Offline):</label>
+          <select id="bossAlliesCount">
+            <option value="0">Đấu 1 mình vs Boss</option>
+            <option value="1" selected>1 Bot đồng minh</option>
+            <option value="2">2 Bot đồng minh</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <label>Bản đồ:</label>
+          <select id="bossMapSelect">
+            <option value="lava_bridge">Sàn Bẫy Dung Nham</option>
+            <option value="water_arena">Sàn Bẫy Nước Sâu</option>
+            <option value="flat_arena">Sàn Phẳng</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="toggle-pill"><input type="checkbox" id="bossPlayerHpEnabled" checked /> ❤️ Người chơi có thanh máu (25 HP • mỗi đòn Boss = -1 HP)</label>
+        </div>
+      </div>
+      <button class="btn btn-boss" style="width:100%;" onclick="startOfflineBossMatch()">Vào Chiến Đấu Với Boss</button>
+    </div>
+
+    <!-- MULTIPLAYER (1-4 NGƯỜI) — CÀI ĐẶT CHẾ ĐỘ & THÔNG SỐ TRƯỚC KHI TẠO PHÒNG -->
+    <div class="menu-card glass hidden" id="screen-multi">
+      <div class="brand-header">
+        <h2>🌐 Chơi với bạn bè (Tối đa 4 người)</h2>
+        <button class="btn" onclick="openScreen('screen-main')">← Quay lại</button>
+      </div>
+
+      <div id="multiLobbySetup" class="section-box">
+        <div class="row" style="margin-bottom:12px;">
+          <input type="text" id="playerNameInput" placeholder="Tên người que..." value="BinlightFan" style="flex:1;min-width:180px;" />
+        </div>
+
+        <!-- Bảng cài đặt chế độ & thông số trước khi nhấn Tạo phòng -->
+        <div class="sub-box" style="margin-bottom:14px;">
+          <h4 style="color:#7dd3fc;margin-bottom:10px;">⚙️ Cài đặt phòng trước khi tạo</h4>
+
+          <div class="row" style="margin-bottom:10px;">
+            <label>Chế độ chơi phòng:</label>
+            <select id="createGameMode" onchange="onCreateModeChanged()">
+              <option value="duel">⚔️ Đối Kháng Tự Do (1–4P)</option>
+              <option value="boss">👹 Boss Fight (Cả phòng cùng đánh Boss)</option>
+              <option value="fun">🎪 Giải Trí Hỗn Loạn (Bật sẵn thông số vui)</option>
+            </select>
+          </div>
+
+          <div class="row" style="margin-bottom:10px;">
+            <label>Bản đồ đấu trường:</label>
+            <select id="createMapSelect">
+              <option value="lava_bridge">Sàn Bẫy Dung Nham</option>
+              <option value="water_arena">Sàn Bẫy Nước Sâu</option>
+              <option value="flat_arena">Sàn Phẳng</option>
+            </select>
+          </div>
+
+          <div class="row" style="margin-bottom:10px;">
+            <label class="toggle-pill"><input type="checkbox" id="createHpEnabled" checked /> ❤️ Có máu (25 HP • 1 đòn = -1 HP)</label>
+            <label class="toggle-pill"><input type="checkbox" id="createRandomWeapon" /> 🎲 Vũ khí ngẫu nhiên mỗi KO</label>
+          </div>
+
+          <div class="row">
+            <label class="toggle-pill"><input type="checkbox" id="createModGiant" /> 💥 Vũ khí khổng lồ (2x)</label>
+            <label class="toggle-pill"><input type="checkbox" id="createModRapid" /> ⚡ Hồi chiêu siêu tốc (-80% CD)</label>
+            <label class="toggle-pill"><input type="checkbox" id="createModTiny" /> 🐭 Nhân vật tí hon (0.5x)</label>
+          </div>
+        </div>
+
+        <div class="row" style="margin-bottom:14px;">
+          <button class="btn btn-primary" style="width:100%;" onclick="createOnlineRoom()">+ Tạo Phòng Với Cài Đặt Trên</button>
+        </div>
+
+        <div class="row">
+          <input type="text" id="joinCodeInput" placeholder="Nhập mã phòng (5 ký tự)" maxlength="6" style="text-transform:uppercase;flex:1;" />
+          <button class="btn" onclick="joinOnlineRoom()">Vào Phòng</button>
+        </div>
+        <p id="multiStatusMsg" style="color:#fbbf24;font-size:0.85rem;margin-top:10px;"></p>
+      </div>
+
+      <div id="multiRoomView" class="section-box hidden">
+        <div class="row" style="margin-bottom:12px;">
+          <div>Mã phòng: <strong id="roomCodeDisplay" style="color:#38bdf8;font-size:1.25rem;letter-spacing:2px;">-----</strong></div>
+          <button class="btn btn-danger" style="padding:7px 12px;" onclick="leaveOnlineRoom()">Rời phòng</button>
+        </div>
+
+        <div id="roomPlayerList" class="section-box" style="margin-bottom:12px;"></div>
+
+        <div id="hostRoomOptions" class="section-box">
+          <h4 style="margin-bottom:10px;color:#7dd3fc;">Chỉnh lại thông số phòng (Chủ phòng)</h4>
+          <div class="row" style="margin-bottom:10px;">
+            <label>Chế độ chơi:</label>
+            <select id="multiGameMode" onchange="syncHostSettings()">
+              <option value="duel">⚔️ Đối Kháng Tự Do (1–4P)</option>
+              <option value="boss">👹 Boss Fight (Cả phòng cùng đánh Boss)</option>
+              <option value="fun">🎪 Giải Trí Hỗn Loạn</option>
+            </select>
+          </div>
+          <div class="row" style="margin-bottom:10px;">
+            <label>Bản đồ:</label>
+            <select id="multiMapSelect" onchange="syncHostSettings()">
+              <option value="lava_bridge">Sàn Bẫy Dung Nham</option>
+              <option value="water_arena">Sàn Bẫy Nước Sâu</option>
+              <option value="flat_arena">Sàn Phẳng</option>
+            </select>
+          </div>
+          <div class="row" style="margin-bottom:10px;">
+            <label class="toggle-pill"><input type="checkbox" id="optHpEnabled" checked onchange="syncHostSettings()" /> ❤️ Có máu (25 HP • 1 đòn = -1 HP)</label>
+            <label class="toggle-pill"><input type="checkbox" id="optRandomWeapon" onchange="syncHostSettings()" /> 🎲 Vũ khí ngẫu nhiên mỗi KO</label>
+          </div>
+          <div class="row" style="margin-bottom:6px;">
+            <label class="toggle-pill"><input type="checkbox" id="optModGiant" onchange="syncHostSettings()" /> 💥 Vũ khí khổng lồ (2x)</label>
+            <label class="toggle-pill"><input type="checkbox" id="optModRapid" onchange="syncHostSettings()" /> ⚡ Hồi chiêu siêu tốc (-80% CD)</label>
+            <label class="toggle-pill"><input type="checkbox" id="optModTiny" onchange="syncHostSettings()" /> 🐭 Nhân vật tí hon (0.5x)</label>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnStartMulti" style="width:100%;" onclick="emitStartMatch()">Bắt Đầu Trận Đấu</button>
+      </div>
+    </div>
+
+    <!-- CHẾ ĐỘ GIẢI TRÍ (FUN MODIFIERS) -->
+    <div class="menu-card glass hidden" id="screen-fun">
+      <div class="brand-header">
+        <h2>🎪 Chế độ Giải trí (Chơi nhanh với Bot)</h2>
+        <button class="btn" onclick="openScreen('screen-main')">← Quay lại</button>
+      </div>
+      <div class="section-box">
+        <p style="color:var(--muted);font-size:0.88rem;margin-bottom:12px;">Bật/tắt các hiệu ứng hỗn loạn để thử nghiệm sức mạnh 20 vũ khí:</p>
+        <div class="row" style="margin-bottom:10px;">
+          <label class="toggle-pill"><input type="checkbox" id="funGiant" checked /> 💥 Vũ khí khổng lồ (2x kích thước & tầm đánh)</label>
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <label class="toggle-pill"><input type="checkbox" id="funRapid" checked /> ⚡ Hồi chiêu siêu tốc (giảm 80% thời gian hồi chiêu)</label>
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <label class="toggle-pill"><input type="checkbox" id="funTiny" /> 🐭 Nhân vật tí hon (0.5x kích thước, tăng tốc độ di chuyển)</label>
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <label class="toggle-pill"><input type="checkbox" id="funRandom" /> 🎲 Vũ khí ngẫu nhiên sau mỗi pha KO</label>
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <label class="toggle-pill"><input type="checkbox" id="funHpEnabled" checked /> ❤️ Có thanh máu (25 HP • mỗi đòn = -1 HP)</label>
+        </div>
+        <div class="row">
+          <label>Bản đồ:</label>
+          <select id="funMapSelect">
+            <option value="lava_bridge">Sàn Bẫy Dung Nham</option>
+            <option value="water_arena">Sàn Bẫy Nước Sâu</option>
+            <option value="flat_arena">Sàn Phẳng</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="startFunMatch()">Vào Đấu Giải Trí Ngay</button>
+    </div>
+
+    <!-- KHO 20 VŨ KHÍ -->
+    <div class="menu-card glass hidden" id="screen-armory">
+      <div class="brand-header">
+        <h2>🗡️ Kho 20 Vũ Khí & Bộ 3 Chiêu Thức</h2>
+        <button class="btn" onclick="openScreen('screen-main')">← Quay lại</button>
+      </div>
+      <div class="weapon-grid" id="weaponGrid"></div>
+    </div>
+
+    <!-- HƯỚNG DẪN & CÀI ĐẶT -->
+    <div class="menu-card glass hidden" id="screen-guide">
+      <div class="brand-header">
+        <h2>📖 Hướng Dẫn & ⚙️ Cài Đặt</h2>
+        <button class="btn" onclick="openScreen('screen-main')">← Quay lại</button>
+      </div>
+      <div class="section-box" style="line-height:1.55;font-size:0.88rem;margin-bottom:14px;">
+        <p><strong>• Máu & Hất văng:</strong> Khi bật <em>Có máu</em>, mỗi người chơi có <strong>25 HP</strong> và mỗi đòn đánh/chiêu trúng đích gây đúng <strong>1 sát thương</strong>. Có thể bật/tắt máu ngay lúc tạo phòng hoặc trong phòng chờ.</p>
+        <p style="margin-top:6px;"><strong>• Điều khiển PC:</strong> <code>W A S D</code> di chuyển & điều hướng tay • <code>Chuột Phải</code>: Chiêu 1 • <code>Chuột Trái</code>: Chiêu 2 • <code>E</code>: Chiêu 3 • <code>F</code>: Khiên.</p>
+        <p style="margin-top:6px;"><strong>• Điều khiển Điện thoại:</strong> Joystick 360° bên trái • Nút <strong>Chiêu 1, Chiêu 2, Chiêu 3, Khiên</strong> bên phải.</p>
+      </div>
+      <div class="section-box">
+        <div class="row" style="margin-bottom:12px;">
+          <label>Chế độ điều khiển:</label>
+          <select id="controlModeSelect" onchange="applyControlMode()">
+            <option value="pc">PC (Bàn phím + Chuột)</option>
+            <option value="mobile">Điện thoại (Cảm ứng ảo)</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <label>Âm lượng SFX: <span id="volVal">70%</span></label>
+          <input type="range" id="sfxVolume" min="0" max="100" value="70" oninput="updateVolume(this.value)" />
+        </div>
+        <div class="row">
+          <label class="toggle-pill"><input type="checkbox" id="screenShakeToggle" checked onchange="state.settings.screenShake = this.checked" /> Rung màn hình (Screen Shake)</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. WEB AUDIO API SFX SYNTHESIZER
+    // =========================================================================
+    const SFX = (() => {
+      let ctx = null;
+      function ensureCtx() {
+        if (!ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) ctx = new AudioCtx();
+        }
+        if (ctx && ctx.state === 'suspended') ctx.resume();
+        return ctx;
+      }
+      function playTone(freqStart, freqEnd, duration, type = 'sawtooth', gainPeak = 0.16) {
+        const c = ensureCtx();
+        if (!c || state.settings.sfxVolume <= 0) return;
+        const now = c.currentTime;
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freqStart, now);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), now + duration);
+        const vol = gainPeak * (state.settings.sfxVolume / 100);
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain);
+        gain.connect(c.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+      return {
+        slash() { playTone(560, 130, 0.11, 'sawtooth', 0.14); },
+        hit() { playTone(190, 52, 0.14, 'square', 0.18); },
+        explosion() { playTone(140, 28, 0.36, 'sawtooth', 0.25); },
+        shield() { playTone(320, 720, 0.15, 'sine', 0.14); },
+        ko() { playTone(440, 65, 0.45, 'triangle', 0.24); }
+      };
+    })();
+
+    // =========================================================================
+    // 2. DANH SÁCH 20 VŨ KHÍ & BỘ 3 CHIÊU THỨC RIÊNG BIỆT
+    // =========================================================================
+    const WEAPONS = [
+      { id: 0, name: 'Kiếm Ánh Sáng (Laser Sword)', color: '#38bdf8', range: 78, knockback: 12, c1: 'Chém sóng năng lượng', c2: 'Lướt chém xuyên mục tiêu', c3: 'Bắn chùm tia laser khổng lồ' },
+      { id: 1, name: 'Búa Tạ Sấm Sét (Thunder Hammer)', color: '#facc15', range: 84, knockback: 18, c1: 'Đập tạo sóng xung kích hất tung', c2: 'Ném búa bay rồi thu về', c3: 'Triệu hồi sét đánh diện rộng' },
+      { id: 2, name: 'Cung Băng Giá (Frost Bow)', color: '#67e8f9', range: 260, knockback: 9, c1: 'Bắn mũi tên làm chậm', c2: 'Nhảy lùi bắn 3 mũi tên tỏa', c3: 'Mưa tên băng đóng băng kẻ địch' },
+      { id: 3, name: 'Lưỡi Hái Tử Thần (Grim Scythe)', color: '#c084fc', range: 92, knockback: 13, c1: 'Quét vòng cung hút kẻ địch lại gần', c2: 'Dịch chuyển tức thời ra sau lưng đối thủ', c3: 'Triệu hồi hố đen hút mọi thứ xung quanh' },
+      { id: 4, name: 'Găng Tay Vô Cực (Power Gauntlets)', color: '#fb7185', range: 64, knockback: 16, c1: 'Đấm liên hoàn đẩy lùi', c2: 'Đấm móc trời hất văng cực mạnh', c3: 'Hóa khổng lồ nắm đấm đập nát mặt đất' },
+      { id: 5, name: 'Trượng Lửa (Inferno Staff)', color: '#fb923c', range: 240, knockback: 15, c1: 'Bắn cầu lửa nổ', c2: 'Tạo tường lửa đẩy lùi', c3: 'Gọi thiên thạch rơi xuống đấu trường' },
+      { id: 6, name: 'Súng Cổng Không Gian (Portal Gun)', color: '#2dd4bf', range: 250, knockback: 10, c1: 'Bắn đạn năng lượng', c2: 'Đặt cổng dịch chuyển bản thân/đối thủ', c3: 'Bắn tia trọng lực bẻ cong quỹ đạo' },
+      { id: 7, name: 'Phi Tiêu Ninja (Shuriken)', color: '#94a3b8', range: 230, knockback: 8, c1: 'Ném 3 phi tiêu nhanh', c2: 'Phân thân lướt đi để lại bom khói', c3: 'Bão phi tiêu xoay quanh người' },
+      { id: 8, name: 'Thương Long Thần (Dragon Spear)', color: '#f97316', range: 115, knockback: 14, c1: 'Đâm liên hoàn tầm xa', c2: 'Phóng lao kéo bản thân bay theo', c3: 'Hóa rồng lửa lao xuyên bản đồ' },
+      { id: 9, name: 'Rìu Chiến Viking (Battle Axe)', color: '#ef4444', range: 86, knockback: 17, c1: 'Bổ mạnh phá khiên', c2: 'Xoay lốc xoáy di chuyển', c3: 'Ném rìu khổng lồ dội tường' },
+      { id: 10, name: 'Súng Laze Đôi (Dual Blasters)', color: '#60a5fa', range: 240, knockback: 7, c1: 'Bắn liên thanh tốc độ cao', c2: 'Lộn nhào né đòn kèm bắn tỉa', c3: 'Bắn đạn chùm phản lực đẩy lùi cực mạnh' },
+      { id: 11, name: 'Gậy Như Ý (Monkey Staff)', color: '#eab308', range: 130, knockback: 15, c1: 'Phóng to gậy quét ngang', c2: 'Chống gậy nhảy vọt lên không rồi đập xuống', c3: 'Gậy dài khổng lồ quét nửa bản đồ' },
+      { id: 12, name: 'Đàn Guitar Điện (Rock Guitar)', color: '#e879f9', range: 165, knockback: 14, c1: 'Bắn nốt nhạc sóng âm', c2: 'Đánh hợp âm làm choáng đối thủ', c3: 'Solo tạo sóng âm thanh 360 độ hất văng tất cả' },
+      { id: 13, name: 'Súng Phóng Lựu (Bazooka)', color: '#f59e0b', range: 250, knockback: 21, c1: 'Bắn tên lửa có lực đẩy lùi (Rocket Jump)', c2: 'Bắn bom dính hẹn giờ', c3: 'Gọi không kích rải thảm' },
+      { id: 14, name: 'Kiếm Katana Bóng Đêm (Shadow Katana)', color: '#a78bfa', range: 88, knockback: 13, c1: 'Chém nhanh tạo vệt đen', c2: 'Phản đòn (Parry) nếu bị đánh trúng', c3: 'Ngưng đọng không gian chém nhiều nhát cùng lúc' },
+      { id: 15, name: 'Khiên Đội Trưởng (Vibranium Shield)', color: '#34d399', range: 190, knockback: 16, c1: 'Ném khiên nảy qua nhiều mục tiêu', c2: 'Húc khiên lao tới miễn nhiễm sát thương', c3: 'Tạo vòm bảo vệ phản lại mọi đạn đạo' },
+      { id: 16, name: 'Bút Lông Thần Kỳ (Magic Brush)', color: '#f472b6', range: 180, knockback: 14, c1: 'Vẽ gai nhọn đâm lên từ đất', c2: 'Vẽ tấm bạt lò xo nảy lên cao', c3: 'Vẽ quả cầu mực khổng lồ đè bẹp đối thủ' },
+      { id: 17, name: 'Cưa Máy Điên Cuồng (Chainsaw)', color: '#fb7185', range: 74, knockback: 11, c1: 'Gây sát thương liên tục khi chạm', c2: 'Tăng tốc lao điên cuồng kéo theo kẻ địch', c3: 'Phóng lưỡi cưa xoay tự động truy đuổi' },
+      { id: 18, name: 'Trượng Thời Gian (Chrono Staff)', color: '#818cf8', range: 230, knockback: 12, c1: 'Bắn tia làm chậm chuyển động đối thủ', c2: 'Tua ngược vị trí bản thân về 3 giây trước', c3: 'Đóng băng thời gian toàn bản đồ trong 2.5 giây' },
+      { id: 19, name: 'Bom Hạt Nhân Mini (Nuke Launcher)', color: '#4ade80', range: 260, knockback: 28, c1: 'Ném lựu đạn nảy', c2: 'Đặt mìn tàng hình', c3: 'Thả quả bom nguyên tử mini tạo vụ nổ khổng lồ' }
+    ];
+
+    const COLORS = ['#38bdf8', '#f472b6', '#4ade80', '#facc15', '#c084fc', '#fb923c', '#f87171'];
+
+    // =========================================================================
+    // 3. TRẠNG THÁI GAME, MẠNG & ĐẦU VÀO
+    // =========================================================================
+    const state = {
+      screen: 'screen-main',
+      mode: 'menu',          // 'menu' | 'bot' | 'fun' | 'boss' | 'multi'
+      gameModeType: 'duel',  // 'duel' | 'boss' | 'fun'
+      hpEnabled: true,       // 25 HP, mỗi đòn đánh trúng = -1 HP
+      selectedWeapon: 0,
+      selectedColor: '#38bdf8',
+      playerName: 'BinlightFan',
+      botDifficulty: 'medium',
+      mapId: 'lava_bridge',
+      randomWeapon: false,
+      modifiers: {
+        giantWeapon: false,
+        rapidCooldown: false,
+        tinyStickman: false
+      },
+      settings: {
+        controlMode: 'pc',
+        sfxVolume: 70,
+        screenShake: true
+      },
+      fighters: [],
+      projectiles: [],
+      effects: [],
+      trails: [],
+      shakeTimer: 0,
+      shakeIntensity: 0,
+      timeFreezeTimer: 0,
+      socket: null,
+      room: null
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let W = window.innerWidth;
+    let H = window.innerHeight;
+
+    function resizeCanvas() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function initUI() {
+      const colorPicker = document.getElementById('colorPicker');
+      COLORS.forEach((c) => {
+        const dot = document.createElement('div');
+        dot.className = 'color-dot' + (c === state.selectedColor ? ' active' : '');
+        dot.style.background = c;
+        dot.onclick = () => {
+          state.selectedColor = c;
+          document.querySelectorAll('.color-dot').forEach((el) => el.classList.remove('active'));
+          dot.classList.add('active');
+          if (state.room && state.socket) {
+            state.socket.emit('update_player_lobby', { color: c });
+          }
+        };
+        colorPicker.appendChild(dot);
+      });
+
+      const grid = document.getElementById('weaponGrid');
+      WEAPONS.forEach((w) => {
+        const card = document.createElement('div');
+        card.className = 'weapon-card' + (w.id === state.selectedWeapon ? ' selected' : '');
+        card.innerHTML = `
+          <h4>${w.id + 1}. ${w.name}</h4>
+          <p><strong>C1:</strong> ${w.c1}</p>
+          <p><strong>C2:</strong> ${w.c2}</p>
+          <p><strong>C3:</strong> ${w.c3}</p>
+        `;
+        card.onclick = () => selectWeapon(w.id);
+        grid.appendChild(card);
+      });
+      selectWeapon(0);
+    }
+
+    function onCreateModeChanged() {
+      const modeVal = document.getElementById('createGameMode').value;
+      if (modeVal === 'fun') {
+        document.getElementById('createModGiant').checked = true;
+        document.getElementById('createModRapid').checked = true;
+      }
+    }
+
+    function selectWeapon(id) {
+      state.selectedWeapon = id;
+      const w = WEAPONS[id];
+      document.getElementById('selectedWeaponName').textContent = `${w.id + 1}. ${w.name}`;
+      document.querySelectorAll('.weapon-card').forEach((el, idx) => {
+        el.classList.toggle('selected', idx === id);
+      });
+      if (state.room && state.socket) {
+        state.socket.emit('update_player_lobby', { weaponId: id });
+      }
+    }
+
+    function openScreen(id) {
+      state.screen = id;
+      document.querySelectorAll('.menu-card').forEach((c) => c.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      document.getElementById('menuLayer').classList.remove('hidden');
+      document.getElementById('hud').style.display = 'none';
+      document.getElementById('touchUI').style.display = 'none';
+      state.mode = 'menu';
+    }
+
+    function applyControlMode() {
+      state.settings.controlMode = document.getElementById('controlModeSelect').value;
+      const isMobile = state.settings.controlMode === 'mobile';
+      document.getElementById('touchUI').style.display = (state.mode !== 'menu' && isMobile) ? 'block' : 'none';
+      document.getElementById('pcSkillBar').style.display = isMobile ? 'none' : 'flex';
+    }
+
+    function updateVolume(val) {
+      state.settings.sfxVolume = Number(val);
+      document.getElementById('volVal').textContent = `${val}%`;
+    }
+
+    // =========================================================================
+    // 4. ĐIỀU KHIỂN PC & MOBILE TOUCH
+    // =========================================================================
+    const inputState = {
+      keys: {},
+      mouseX: W * 0.6,
+      mouseY: H * 0.4,
+      joyX: 0,
+      joyY: 0
+    };
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      inputState.keys[k] = true;
+      if (state.mode === 'menu') return;
+      const me = state.fighters.find((f) => f.isLocal);
+      if (!me || !me.alive) return;
+
+      if (k === 'e') castSkill(me, 3);
+      if (k === 'f') activateShield(me);
+    });
+
+    window.addEventListener('keyup', (e) => {
+      inputState.keys[e.key.toLowerCase()] = false;
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      inputState.mouseX = e.clientX;
+      inputState.mouseY = e.clientY;
+    });
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (state.mode === 'menu' || state.settings.controlMode !== 'pc') return;
+      const me = state.fighters.find((f) => f.isLocal);
+      if (!me || !me.alive) return;
+      if (e.button === 2) castSkill(me, 1);
+      if (e.button === 0) castSkill(me, 2);
+    });
+
+    (() => {
+      const zone = document.getElementById('joystickZone');
+      const knob = document.getElementById('joystickKnob');
+      let activeTouchId = null;
+      const maxR = 42;
+
+      zone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        activeTouchId = t.identifier;
+      }, { passive: false });
+
+      zone.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          if (t.identifier !== activeTouchId) continue;
+          const rect = zone.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          let dx = t.clientX - cx;
+          let dy = t.clientY - cy;
+          const dist = Math.hypot(dx, dy);
+          if (dist > maxR) {
+            dx = (dx / dist) * maxR;
+            dy = (dy / dist) * maxR;
+          }
+          knob.style.transform = `translate(${dx}px, ${dy}px)`;
+          inputState.joyX = dx / maxR;
+          inputState.joyY = dy / maxR;
+        }
+      }, { passive: false });
+
+      const endJoy = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === activeTouchId) {
+            activeTouchId = null;
+            knob.style.transform = 'translate(0px, 0px)';
+            inputState.joyX = 0;
+            inputState.joyY = 0;
+          }
+        }
+      };
+      zone.addEventListener('touchend', endJoy);
+      zone.addEventListener('touchcancel', endJoy);
+
+      const bindTouchSkill = (id, fn) => {
+        document.getElementById(id).addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          const me = state.fighters.find((f) => f.isLocal);
+          if (me && me.alive) fn(me);
+        }, { passive: false });
+      };
+      bindTouchSkill('tBtnS1', (me) => castSkill(me, 1));
+      bindTouchSkill('tBtnS2', (me) => castSkill(me, 2));
+      bindTouchSkill('tBtnS3', (me) => castSkill(me, 3));
+      bindTouchSkill('tBtnShield', (me) => activateShield(me));
+    })();
+
+    // =========================================================================
+    // 5. RAGDOLL FIGHTER & BOSS ENGINE (25 HP • 1 ĐÒN = 1 SÁT THƯƠNG)
+    // =========================================================================
+    function createFighter(opts) {
+      const isBoss = !!opts.isBoss;
+      const scale = isBoss ? 2.15 : (state.modifiers.tinyStickman ? 0.55 : 1.0);
+      const maxHp = opts.maxHp ?? (isBoss ? 80 : 25);
+      return {
+        id: opts.id,
+        name: opts.name,
+        color: opts.color,
+        weaponId: opts.weaponId ?? 0,
+        isLocal: !!opts.isLocal,
+        isBot: !!opts.isBot,
+        isAlly: !!opts.isAlly,
+        isBoss,
+        botDiff: opts.botDiff || 'medium',
+        score: opts.score || 0,
+        hp: maxHp,
+        maxHp,
+        alive: true,
+        respawnTimer: 0,
+        scale,
+        x: opts.x || W * 0.5,
+        y: opts.y || H * 0.4,
+        vx: 0,
+        vy: 0,
+        aimAngle: opts.aimAngle ?? 0,
+        ragdollWobble: 0,
+        ragdollTilt: 0,
+        slowTimer: 0,
+        freezeTimer: 0,
+        stunTimer: 0,
+        invulnTimer: 0,
+        shieldActiveTimer: 0,
+        shieldCooldown: 0,
+        history: [],
+        cooldowns: { 1: 0, 2: 0, 3: 0 },
+        aiTimer: 0,
+        aiDir: 1
+      };
+    }
+
+    function getArenaGeometry() {
+      const platformW = Math.min(W * 0.72, 920);
+      const platformH = 22;
+      const platformX = (W - platformW) / 2;
+      const platformY = H * 0.68;
+      const hazardY = H - 56;
+      return { platformW, platformH, platformX, platformY, hazardY };
+    }
+
+    function triggerShake(intensity = 10, duration = 0.22) {
+      if (!state.settings.screenShake) return;
+      state.shakeIntensity = Math.max(state.shakeIntensity, intensity);
+      state.shakeTimer = Math.max(state.shakeTimer, duration);
+    }
+
+    function spawnParticles(x, y, color, count = 12, speed = 260) {
+      for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = (0.3 + Math.random() * 0.9) * speed;
+        state.effects.push({
+          kind: 'particle',
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd - 60,
+          r: 3 + Math.random() * 4.5,
+          color,
+          life: 0.35 + Math.random() * 0.3,
+          maxLife: 0.65
+        });
+      }
+    }
+
+    function activateShield(f) {
+      if (f.shieldCooldown > 0 || f.shieldActiveTimer > 0) return;
+      f.shieldActiveTimer = 0.85;
+      const cdScale = state.modifiers.rapidCooldown ? 0.2 : 1.0;
+      f.shieldCooldown = 2.6 * cdScale;
+      SFX.shield();
+      state.effects.push({
+        kind: 'ring',
+        x: f.x,
+        y: f.y - 16 * f.scale,
+        r: 28 * f.scale,
+        color: '#10b981',
+        life: 0.25,
+        maxLife: 0.25
+      });
+    }
+
+    function isFriendly(a, b) {
+      if (!a || !b || a.id === b.id) return true;
+      if (state.gameModeType === 'boss') {
+        return (!a.isBoss && !b.isBoss);
+      }
+      return false;
+    }
+
+    function applyImpact(attacker, target, knockX, knockY, extraEffect = null) {
+      if (!target || !target.alive || target.invulnTimer > 0) return;
+      if (isFriendly(attacker, target)) return;
+
+      if (target.shieldActiveTimer > 0) {
+        SFX.shield();
+        if (attacker && attacker !== target) {
+          attacker.vx -= knockX * 0.45;
+          attacker.vy -= Math.abs(knockY) * 0.35 + 120;
+        }
+        spawnParticles(target.x, target.y - 18 * target.scale, '#10b981', 10, 180);
+        return;
+      }
+
+      if (target.parryTimer && target.parryTimer > 0 && attacker) {
+        SFX.slash();
+        attacker.vx += Math.sign(attacker.x - target.x || 1) * 680;
+        attacker.vy -= 360;
+        attacker.stunTimer = 0.7;
+        spawnParticles(target.x, target.y - 20, '#a78bfa', 18, 320);
+        return;
+      }
+
+      if (state.hpEnabled) {
+        target.hp = Math.max(0, target.hp - 1);
+      }
+
+      const giantMult = state.modifiers.giantWeapon ? 1.35 : 1.0;
+      const bossResist = target.isBoss ? 0.55 : 1.0;
+      const lowHpKnockMult = state.hpEnabled
+        ? 1 + (1 - Math.max(0, target.hp) / target.maxHp) * 0.65
+        : 1.15;
+
+      target.vx += knockX * giantMult * lowHpKnockMult * bossResist;
+      target.vy += knockY * giantMult * lowHpKnockMult * bossResist;
+      target.ragdollWobble = 14;
+      target.ragdollTilt = Math.max(-1.1, Math.min(1.1, knockX / 500));
+      target.lastHitBy = attacker ? attacker.id : null;
+
+      if (extraEffect === 'slow') target.slowTimer = 2.2;
+      if (extraEffect === 'freeze') target.freezeTimer = 1.6;
+      if (extraEffect === 'stun') target.stunTimer = 1.0;
+
+      SFX.hit();
+      triggerShake(target.isBoss ? 10 : 7, 0.14);
+      spawnParticles(target.x, target.y - 18 * target.scale, target.color, 10, 220);
+
+      if (state.hpEnabled && target.hp <= 0) {
+        handleKO(target, attacker ? attacker.id : target.lastHitBy);
+      }
+
+      renderScoreboard();
+    }
+
+    function castSkill(caster, slot) {
+      if (!caster.alive || caster.freezeTimer > 0 || caster.stunTimer > 0) return;
+      if (caster.cooldowns[slot] > 0) return;
+
+      const w = WEAPONS[caster.weaponId] || WEAPONS[0];
+      const cdScale = state.modifiers.rapidCooldown ? 0.2 : 1.0;
+      const baseCd = slot === 1 ? 0.55 : slot === 2 ? 1.45 : 3.2;
+      caster.cooldowns[slot] = baseCd * cdScale;
+
+      const reachMult = (state.modifiers.giantWeapon ? 2.0 : 1.0) * (caster.isBoss ? 1.5 : 1.0);
+      const range = w.range * reachMult;
+      const kb = w.knockback * 32 * (caster.isBoss ? 1.3 : 1.0);
+      const ax = Math.cos(caster.aimAngle);
+      const ay = Math.sin(caster.aimAngle);
+
+      caster.ragdollWobble = 8;
+      caster.ragdollTilt = ax * 0.45;
+
+      state.trails.push({
+        x: caster.x,
+        y: caster.y - 18 * caster.scale,
+        angle: caster.aimAngle,
+        len: Math.min(range, 160),
+        color: w.color,
+        life: 0.18,
+        maxLife: 0.18
+      });
+
+      const enemies = state.fighters.filter((f) => f.id !== caster.id && f.alive && !isFriendly(caster, f));
+
+      const hitMeleeArc = (arcRange, forceX, forceY, status = null) => {
+        SFX.slash();
+        enemies.forEach((en) => {
+          const dx = en.x - caster.x;
+          const dy = (en.y - 18 * en.scale) - (caster.y - 18 * caster.scale);
+          const dist = Math.hypot(dx, dy);
+          if (dist <= arcRange + 22 * en.scale) {
+            const dirX = dist > 1 ? dx / dist : ax;
+            const dirY = dist > 1 ? dy / dist : ay;
+            applyImpact(caster, en, dirX * forceX, dirY * forceY - 160, status);
+          }
+        });
+      };
+
+      const spawnProj = (kind, speed, radius, fx, fy, status = null, life = 1.4) => {
+        SFX.slash();
+        state.projectiles.push({
+          ownerId: caster.id,
+          weaponId: w.id,
+          kind,
+          x: caster.x + ax * 28 * caster.scale,
+          y: caster.y - 18 * caster.scale + ay * 28 * caster.scale,
+          vx: ax * speed,
+          vy: ay * speed,
+          radius: radius * reachMult,
+          fx,
+          fy,
+          status,
+          color: w.color,
+          life
+        });
+      };
+
+      switch (w.id) {
+        case 0:
+          if (slot === 1) spawnProj('wave', 540, 22, kb, kb * 0.6);
+          if (slot === 2) { caster.vx += ax * 560; caster.vy += ay * 320; caster.invulnTimer = 0.25; hitMeleeArc(range * 1.15, kb * 1.2, kb * 0.7); }
+          if (slot === 3) {
+            SFX.explosion(); triggerShake(13, 0.3);
+            state.effects.push({ kind: 'beam', x1: caster.x, y1: caster.y - 18 * caster.scale, angle: caster.aimAngle, len: 760, width: 34 * reachMult, color: '#38bdf8', life: 0.28, maxLife: 0.28 });
+            enemies.forEach((en) => {
+              const projDist = Math.abs((en.x - caster.x) * ay - (en.y - caster.y) * ax);
+              if (projDist < 54 * reachMult) applyImpact(caster, en, ax * kb * 1.6, ay * kb * 1.1 - 220);
+            });
+          }
+          break;
+        case 1:
+          if (slot === 1) { SFX.explosion(); state.effects.push({ kind: 'ring', x: caster.x + ax * 45, y: caster.y, r: range, color: '#facc15', life: 0.25, maxLife: 0.25 }); hitMeleeArc(range * 1.2, kb * 1.35, -460); }
+          if (slot === 2) spawnProj('boomerang', 520, 20, kb * 1.1, -240, null, 1.3);
+          if (slot === 3) {
+            SFX.explosion(); triggerShake(14, 0.32);
+            enemies.forEach((en) => { state.effects.push({ kind: 'lightning', x: en.x, yTop: 0, yBot: en.y, life: 0.25, maxLife: 0.25 }); applyImpact(caster, en, (en.x >= caster.x ? 1 : -1) * kb * 1.4, -520, 'stun'); });
+          }
+          break;
+        case 2:
+          if (slot === 1) spawnProj('arrow', 680, 12, kb * 0.8, -120, 'slow', 1.6);
+          if (slot === 2) {
+            caster.vx -= ax * 360; caster.vy -= 260;
+            [-0.22, 0, 0.22].forEach((dAng) => {
+              const ang = caster.aimAngle + dAng;
+              state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'arrow', x: caster.x, y: caster.y - 18, vx: Math.cos(ang) * 650, vy: Math.sin(ang) * 650, radius: 12 * reachMult, fx: kb * 0.85, fy: -140, status: 'slow', color: '#67e8f9', life: 1.5 });
+            });
+          }
+          if (slot === 3) {
+            enemies.forEach((en) => {
+              for (let i = 0; i < 4; i++) state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'arrow', x: en.x + (i - 1.5) * 35, y: 40, vx: 0, vy: 580, radius: 16 * reachMult, fx: kb * 0.7, fy: -120, status: 'freeze', color: '#a5f3fc', life: 1.5 });
+            });
+          }
+          break;
+        case 3:
+          if (slot === 1) {
+            SFX.slash();
+            enemies.forEach((en) => { if (Math.hypot(en.x - caster.x, en.y - caster.y) <= range * 1.4) { en.vx += (caster.x - en.x) * 2.2; en.vy -= 180; applyImpact(caster, en, (caster.x - en.x) * 1.5, -180); } });
+          }
+          if (slot === 2 && enemies[0]) { const target = enemies[0]; caster.x = target.x - Math.sign(target.vx || 1) * 44; caster.y = target.y; hitMeleeArc(range, kb * 1.1, -240); }
+          if (slot === 3) { SFX.explosion(); state.effects.push({ kind: 'blackhole', x: caster.x + ax * 130, y: caster.y - 24, r: 95 * reachMult, life: 1.4, maxLife: 1.4 }); }
+          break;
+        case 4:
+          if (slot === 1) hitMeleeArc(range * 1.15, kb * 1.2, -160);
+          if (slot === 2) hitMeleeArc(range * 1.25, kb * 1.3, -580);
+          if (slot === 3) {
+            SFX.explosion(); triggerShake(15, 0.35);
+            if (!caster.isBoss) { caster.scale = 1.65; setTimeout(() => { caster.scale = state.modifiers.tinyStickman ? 0.55 : 1.0; }, 1800); }
+            hitMeleeArc(range * 1.8, kb * 1.8, -540);
+          }
+          break;
+        case 5:
+          if (slot === 1) spawnProj('fireball', 500, 22, kb * 1.25, -260, null, 1.5);
+          if (slot === 2) state.effects.push({ kind: 'wall', x: caster.x + ax * 80, y: caster.y - 30, w: 22 * reachMult, h: 80 * reachMult, color: '#fb923c', life: 2.2, maxLife: 2.2 });
+          if (slot === 3) { SFX.explosion(); enemies.forEach((en) => state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'meteor', x: en.x + 80, y: 20, vx: -180, vy: 620, radius: 34 * reachMult, fx: kb * 1.7, fy: -450, color: '#f97316', life: 1.6 })); }
+          break;
+        case 6:
+          if (slot === 1) spawnProj('orb', 640, 15, kb * 0.9, -150);
+          if (slot === 2) {
+            const px = caster.x + ax * 150;
+            const py = Math.min(caster.y - 20, getArenaGeometry().platformY - 24);
+            caster.portalPos = { x: px, y: py };
+            state.effects.push({ kind: 'ring', x: px, y: py, r: 28, color: '#2dd4bf', life: 1.5, maxLife: 1.5 });
+            setTimeout(() => { if (caster.portalPos && caster.alive) { caster.x = caster.portalPos.x; caster.y = caster.portalPos.y; caster.vx = 0; caster.vy = 0; } }, 650);
+          }
+          if (slot === 3) spawnProj('gravity', 460, 26, kb * 1.5, -360, 'stun', 1.6);
+          break;
+        case 7:
+          if (slot === 1) { [-0.14, 0, 0.14].forEach((d) => { const a = caster.aimAngle + d; state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'shuriken', x: caster.x, y: caster.y - 18, vx: Math.cos(a) * 720, vy: Math.sin(a) * 720, radius: 11 * reachMult, fx: kb * 0.75, fy: -120, color: '#cbd5e1', life: 1.3 }); }); }
+          if (slot === 2) { caster.vx += ax * 540; caster.vy -= 140; caster.invulnTimer = 0.35; }
+          if (slot === 3) { for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'shuriken', x: caster.x + Math.cos(a) * 55, y: caster.y - 18 + Math.sin(a) * 55, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420, radius: 12 * reachMult, fx: kb * 0.9, fy: -180, color: '#e2e8f0', life: 1.2 }); } }
+          break;
+        case 8:
+          if (slot === 1) hitMeleeArc(range * 1.35, kb * 1.15, -140);
+          if (slot === 2) { caster.vx += ax * 640; caster.vy += ay * 340; hitMeleeArc(range * 1.2, kb * 1.25, -220); }
+          if (slot === 3) { SFX.explosion(); caster.vx += ax * 820; caster.vy += ay * 260; caster.invulnTimer = 0.45; hitMeleeArc(range * 1.8, kb * 1.7, -420); }
+          break;
+        case 9:
+          if (slot === 1) { enemies.forEach((en) => en.shieldActiveTimer = 0); hitMeleeArc(range * 1.2, kb * 1.4, -300); }
+          if (slot === 2) { caster.vx += ax * 420; hitMeleeArc(range * 1.3, kb * 1.25, -260); }
+          if (slot === 3) spawnProj('axe', 560, 24, kb * 1.5, -340, null, 2.0);
+          break;
+        case 10:
+          if (slot === 1) spawnProj('laser_bolt', 820, 10, kb * 0.65, -90, null, 1.2);
+          if (slot === 2) { caster.vy -= 360; caster.vx -= ax * 280; spawnProj('laser_bolt', 860, 13, kb * 1.0, -160, null, 1.4); }
+          if (slot === 3) { SFX.explosion(); for (let i = -2; i <= 2; i++) { const a = caster.aimAngle + i * 0.12; state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'laser_bolt', x: caster.x, y: caster.y - 18, vx: Math.cos(a) * 760, vy: Math.sin(a) * 760, radius: 13 * reachMult, fx: kb * 1.35, fy: -240, color: '#60a5fa', life: 1.3 }); } }
+          break;
+        case 11:
+          if (slot === 1) hitMeleeArc(range * 1.45, kb * 1.25, -220);
+          if (slot === 2) { caster.vy = -560; caster.vx += ax * 260; setTimeout(() => { if (caster.alive) hitMeleeArc(range * 1.5, kb * 1.4, -380); }, 360); }
+          if (slot === 3) { SFX.explosion(); state.effects.push({ kind: 'beam', x1: caster.x, y1: caster.y - 18, angle: caster.aimAngle, len: 520 * reachMult, width: 28 * reachMult, color: '#eab308', life: 0.3, maxLife: 0.3 }); enemies.forEach((en) => { if (Math.hypot(en.x - caster.x, en.y - caster.y) < 520 * reachMult) applyImpact(caster, en, ax * kb * 1.7, -440); }); }
+          break;
+        case 12:
+          if (slot === 1) spawnProj('note', 520, 18, kb * 1.0, -220, null, 1.5);
+          if (slot === 2) hitMeleeArc(range * 1.25, kb * 0.9, -200, 'stun');
+          if (slot === 3) {
+            SFX.explosion(); triggerShake(13, 0.3);
+            state.effects.push({ kind: 'ring', x: caster.x, y: caster.y - 18, r: 240 * reachMult, color: '#e879f9', life: 0.35, maxLife: 0.35 });
+            enemies.forEach((en) => { const d = Math.hypot(en.x - caster.x, en.y - caster.y); if (d < 240 * reachMult) applyImpact(caster, en, ((en.x - caster.x) / (d || 1)) * kb * 1.7, -460); });
+          }
+          break;
+        case 13:
+          if (slot === 1) { caster.vx -= ax * 340; caster.vy -= ay * 340; spawnProj('rocket', 560, 26, kb * 1.5, -420, null, 1.6); }
+          if (slot === 2) spawnProj('sticky_bomb', 420, 20, kb * 1.6, -460, null, 1.8);
+          if (slot === 3) { SFX.explosion(); for (let i = 0; i < 5; i++) state.projectiles.push({ ownerId: caster.id, weaponId: w.id, kind: 'rocket', x: W * (0.2 + i * 0.15), y: 20, vx: 0, vy: 560, radius: 30 * reachMult, fx: kb * 1.5, fy: -420, color: '#f59e0b', life: 1.6 }); }
+          break;
+        case 14:
+          if (slot === 1) hitMeleeArc(range * 1.2, kb * 1.15, -180);
+          if (slot === 2) caster.parryTimer = 0.85;
+          if (slot === 3) { SFX.slash(); hitMeleeArc(range * 1.7, kb * 1.5, -360); }
+          break;
+        case 15:
+          if (slot === 1) spawnProj('boomerang', 620, 22, kb * 1.15, -240, null, 1.5);
+          if (slot === 2) { caster.invulnTimer = 0.55; caster.vx += ax * 650; hitMeleeArc(range * 0.85, kb * 1.35, -280); }
+          if (slot === 3) { caster.shieldActiveTimer = 2.2; SFX.shield(); }
+          break;
+        case 16:
+          if (slot === 1) { const gx = caster.x + ax * 120; state.effects.push({ kind: 'spike', x: gx, y: getArenaGeometry().platformY, r: 42 * reachMult, life: 1.2, maxLife: 1.2 }); enemies.forEach((en) => { if (Math.abs(en.x - gx) < 48 * reachMult) applyImpact(caster, en, ax * kb, -520); }); }
+          if (slot === 2) state.effects.push({ kind: 'spring', x: caster.x + ax * 60, y: getArenaGeometry().platformY, r: 46 * reachMult, life: 2.5, maxLife: 2.5 });
+          if (slot === 3) spawnProj('ink_ball', 420, 40, kb * 1.65, -480, null, 1.8);
+          break;
+        case 17:
+          if (slot === 1) hitMeleeArc(range * 1.05, kb * 0.95, -140);
+          if (slot === 2) { caster.vx += ax * 620; hitMeleeArc(range * 1.15, kb * 1.2, -220); }
+          if (slot === 3) spawnProj('saw_homing', 480, 22, kb * 1.25, -260, null, 2.2);
+          break;
+        case 18:
+          if (slot === 1) spawnProj('chrono_ray', 660, 18, kb * 0.8, -120, 'slow', 1.5);
+          if (slot === 2 && caster.history.length > 0) { const past = caster.history[0]; caster.x = past.x; caster.y = past.y; caster.vx = 0; caster.vy = 0; }
+          if (slot === 3) { SFX.explosion(); state.timeFreezeTimer = 2.0; enemies.forEach((en) => en.freezeTimer = 2.2); }
+          break;
+        case 19:
+          if (slot === 1) spawnProj('nuke_grenade', 480, 22, kb * 1.6, -450, null, 1.6);
+          if (slot === 2) state.effects.push({ kind: 'mine', x: caster.x, y: caster.y, ownerId: caster.id, r: 44 * reachMult, life: 5.0, maxLife: 5.0 });
+          if (slot === 3) {
+            SFX.explosion(); triggerShake(22, 0.5);
+            const nx = caster.x + ax * 160; const ny = caster.y - 20;
+            state.effects.push({ kind: 'nuke', x: nx, y: ny, r: 260 * reachMult, life: 0.65, maxLife: 0.65 });
+            enemies.forEach((en) => { const d = Math.hypot(en.x - nx, en.y - ny); if (d < 260 * reachMult) applyImpact(caster, en, ((en.x - nx) / (d || 1)) * kb * 2.1, -650); });
+          }
+          break;
+      }
+
+      if (state.mode === 'multi' && state.socket && caster.isLocal) {
+        state.socket.emit('skill_cast', { slot, weaponId: w.id, aimAngle: caster.aimAngle });
+      }
+    }
+
+    // =========================================================================
+    // 6. CẬP NHẬT VẬT LÝ, AI BOT & BOSS, HẠ GỤC (KO)
+    // =========================================================================
+    function updateFighters(dt) {
+      const { platformW, platformX, platformY, hazardY } = getArenaGeometry();
+
+      state.fighters.forEach((f) => {
+        if (!f.alive) {
+          if (state.mode !== 'multi') {
+            f.respawnTimer -= dt;
+            if (f.respawnTimer <= 0) {
+              f.alive = true;
+              f.hp = f.maxHp;
+              f.x = W * 0.25 + Math.random() * W * 0.5;
+              f.y = platformY - 40;
+              f.vx = 0; f.vy = 0;
+              f.invulnTimer = 1.2;
+              if (state.randomWeapon && !f.isBoss) {
+                f.weaponId = Math.floor(Math.random() * WEAPONS.length);
+              }
+              renderScoreboard();
+            }
+          }
+          return;
+        }
+
+        f.history.push({ x: f.x, y: f.y });
+        if (f.history.length > 180) f.history.shift();
+
+        f.cooldowns[1] = Math.max(0, f.cooldowns[1] - dt);
+        f.cooldowns[2] = Math.max(0, f.cooldowns[2] - dt);
+        f.cooldowns[3] = Math.max(0, f.cooldowns[3] - dt);
+        f.shieldActiveTimer = Math.max(0, f.shieldActiveTimer - dt);
+        f.shieldCooldown = Math.max(0, f.shieldCooldown - dt);
+        f.invulnTimer = Math.max(0, f.invulnTimer - dt);
+        f.slowTimer = Math.max(0, f.slowTimer - dt);
+        f.freezeTimer = Math.max(0, f.freezeTimer - dt);
+        f.stunTimer = Math.max(0, f.stunTimer - dt);
+        if (f.parryTimer) f.parryTimer = Math.max(0, f.parryTimer - dt);
+
+        f.ragdollWobble *= 0.88;
+        f.ragdollTilt *= 0.9;
+
+        const speedMult = (state.modifiers.tinyStickman ? 1.32 : 1.0) * (f.slowTimer > 0 ? 0.45 : 1.0);
+        const moveAccel = (f.isBoss ? 1450 : 1950) * speedMult;
+
+        if (f.freezeTimer <= 0 && f.stunTimer <= 0) {
+          if (f.isLocal) {
+            let mx = 0, my = 0;
+            if (state.settings.controlMode === 'mobile') {
+              mx = inputState.joyX;
+              my = inputState.joyY;
+              if (Math.hypot(mx, my) > 0.15) f.aimAngle = Math.atan2(my, mx);
+            } else {
+              if (inputState.keys['a']) mx -= 1;
+              if (inputState.keys['d']) mx += 1;
+              if (inputState.keys['w']) my -= 1;
+              if (inputState.keys['s']) my += 1;
+              f.aimAngle = Math.atan2(inputState.mouseY - (f.y - 18 * f.scale), inputState.mouseX - f.x);
+            }
+
+            if (mx !== 0) {
+              f.vx += mx * moveAccel * dt;
+              f.ragdollTilt += mx * 0.08;
+            }
+            if (my < -0.2 && Math.abs(f.y - platformY) < 14) {
+              f.vy = -520 * (state.modifiers.tinyStickman ? 1.12 : 1.0);
+            }
+
+            if (state.mode === 'multi' && state.socket) {
+              state.socket.volatile.emit('player_input', {
+                input: { mx, my, aimAngle: f.aimAngle },
+                netState: {
+                  x: f.x, y: f.y, vx: f.vx, vy: f.vy,
+                  aimAngle: f.aimAngle, alive: f.alive,
+                  hp: f.hp, shieldActive: f.shieldActiveTimer > 0
+                }
+              });
+            }
+          } else if (f.isBot || f.isBoss) {
+            updateBotAI(f, dt, platformX, platformW);
+          }
+        }
+
+        const gravity = 1280;
+        f.vy += gravity * dt;
+        f.vx *= Math.pow(0.08, dt);
+
+        f.x += f.vx * dt;
+        f.y += f.vy * dt;
+
+        if (
+          state.mapId === 'flat_arena' ||
+          (f.x >= platformX - 10 && f.x <= platformX + platformW + 10)
+        ) {
+          const floorY = state.mapId === 'flat_arena' ? H - 72 : platformY;
+          if (f.y >= floorY && f.vy >= 0) {
+            if (f.vy > 420) f.ragdollWobble = Math.min(18, f.vy * 0.025);
+            f.y = floorY;
+            f.vy = 0;
+          }
+        }
+
+        if (state.mapId !== 'flat_arena' && f.y > hazardY) {
+          handleKO(f, f.lastHitBy);
+        }
+
+        if (state.hpEnabled && f.alive && f.hp <= 0) {
+          handleKO(f, f.lastHitBy);
+        }
+      });
+    }
+
+    function updateBotAI(bot, dt, platformX, platformW) {
+      bot.aiTimer -= dt;
+      const targets = state.fighters.filter((o) => o.id !== bot.id && o.alive && !isFriendly(bot, o));
+      if (targets.length === 0) return;
+
+      let nearest = targets[0];
+      let bestD = Infinity;
+      targets.forEach((t) => {
+        const d = Math.hypot(t.x - bot.x, t.y - bot.y);
+        if (d < bestD) { bestD = d; nearest = t; }
+      });
+
+      const dx = nearest.x - bot.x;
+      const dy = (nearest.y - 16) - (bot.y - 16 * bot.scale);
+      bot.aimAngle = Math.atan2(dy, dx);
+
+      if (state.mapId !== 'flat_arena') {
+        if (bot.x < platformX + 55) bot.aiDir = 1;
+        else if (bot.x > platformX + platformW - 55) bot.aiDir = -1;
+        else if (bot.aiTimer <= 0) bot.aiDir = Math.sign(dx) || (Math.random() < 0.5 ? -1 : 1);
+      } else if (bot.aiTimer <= 0) {
+        bot.aiDir = Math.sign(dx);
+      }
+
+      const diffMult = bot.isBoss ? 1.15 : (bot.botDiff === 'hard' ? 1.25 : bot.botDiff === 'easy' ? 0.65 : 0.95);
+      bot.vx += bot.aiDir * (bot.isBoss ? 1250 : 1650) * diffMult * dt;
+
+      if (bot.aiTimer <= 0) {
+        bot.aiTimer = (bot.isBoss ? 0.55 : (bot.botDiff === 'hard' ? 0.35 : 0.7)) + Math.random() * 0.35;
+        if (Math.random() < 0.3 * diffMult && Math.abs(bot.y - getArenaGeometry().platformY) < 15) {
+          bot.vy = -500;
+        }
+        if (bestD < 160 * bot.scale && bot.cooldowns[1] <= 0) castSkill(bot, 1);
+        else if (bestD < 320 && bot.cooldowns[2] <= 0 && Math.random() < 0.55) castSkill(bot, 2);
+        else if (bot.cooldowns[3] <= 0 && Math.random() < 0.38) castSkill(bot, 3);
+        if (bestD < 110 && Math.random() < 0.25 * diffMult) activateShield(bot);
+      }
+    }
+
+    function handleKO(victim, killerId) {
+      if (!victim.alive) return;
+      victim.alive = false;
+      victim.respawnTimer = 2.0;
+      SFX.ko();
+      triggerShake(victim.isBoss ? 22 : 16, 0.35);
+
+      const koColor = victim.isBoss ? '#f43f5e' : (state.mapId === 'water_arena' ? '#38bdf8' : '#f97316');
+      spawnParticles(victim.x, Math.min(victim.y, getArenaGeometry().hazardY), koColor, victim.isBoss ? 40 : 26, 380);
+
+      const killer = state.fighters.find((f) => f.id === killerId);
+      const nextRandWeapon = Math.floor(Math.random() * WEAPONS.length);
+
+      if (victim.isBoss) {
+        state.fighters.filter((f) => !f.isBoss).forEach((pl) => { pl.score += 1; });
+        victim.maxHp += 20;
+      } else if (killer && killer.id !== victim.id) {
+        killer.score += 1;
+        if (state.randomWeapon) killer.weaponId = nextRandWeapon;
+      }
+
+      if (!victim.isBoss && state.randomWeapon) {
+        victim.weaponId = Math.floor(Math.random() * WEAPONS.length);
+      }
+
+      if (state.mode === 'multi' && state.socket && (victim.isLocal || (killer && killer.isLocal))) {
+        state.socket.emit('player_ko', {
+          victimId: victim.id,
+          killerId: killerId || victim.id,
+          newRandomWeapon: nextRandWeapon
+        });
+      }
+
+      renderScoreboard();
+    }
+
+    function updateProjectilesAndEffects(dt) {
+      const { platformY } = getArenaGeometry();
+
+      for (let i = state.projectiles.length - 1; i >= 0; i--) {
+        const p = state.projectiles[i];
+        p.life -= dt;
+        if (p.kind === 'boomerang') {
+          p.vx *= 0.94;
+          const owner = state.fighters.find((f) => f.id === p.ownerId);
+          if (owner && p.life < 0.7) {
+            p.vx += (owner.x - p.x) * 8 * dt;
+            p.vy += (owner.y - 18 * owner.scale - p.y) * 8 * dt;
+          }
+        } else if (p.kind === 'saw_homing') {
+          const owner = state.fighters.find((f) => f.id === p.ownerId);
+          const target = state.fighters.find((f) => f.id !== p.ownerId && f.alive && !isFriendly(owner, f));
+          if (target) {
+            const ang = Math.atan2(target.y - 18 - p.y, target.x - p.x);
+            p.vx += Math.cos(ang) * 900 * dt;
+            p.vy += Math.sin(ang) * 900 * dt;
+          }
+        } else if (p.kind === 'nuke_grenade' || p.kind === 'sticky_bomb') {
+          p.vy += 900 * dt;
+          if (p.y >= platformY - 8) { p.y = platformY - 8; p.vy = -Math.abs(p.vy) * 0.55; }
+        }
+
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+
+        if (p.kind === 'axe' && (p.x < 24 || p.x > W - 24)) p.vx *= -1;
+
+        const owner = state.fighters.find((f) => f.id === p.ownerId);
+        let hitSomething = false;
+
+        state.fighters.forEach((en) => {
+          if (!en.alive || en.id === p.ownerId || isFriendly(owner, en)) return;
+          if (Math.hypot(en.x - p.x, (en.y - 18 * en.scale) - p.y) <= p.radius + 22 * en.scale) {
+            const dirX = Math.sign(p.vx) || 1;
+            applyImpact(owner, en, dirX * p.fx, p.fy, p.status);
+            hitSomething = true;
+          }
+        });
+
+        if (hitSomething && (p.kind === 'nuke_grenade' || p.kind === 'rocket' || p.kind === 'ink_ball')) {
+          SFX.explosion();
+          spawnParticles(p.x, p.y, p.color, 18, 320);
+        }
+
+        if (p.life <= 0 || (hitSomething && p.kind !== 'boomerang' && p.kind !== 'saw_homing')) {
+          state.projectiles.splice(i, 1);
+        }
+      }
+
+      for (let i = state.effects.length - 1; i >= 0; i--) {
+        const ef = state.effects[i];
+        ef.life -= dt;
+        if (ef.kind === 'particle') {
+          ef.vy += 650 * dt; ef.x += ef.vx * dt; ef.y += ef.vy * dt;
+        } else if (ef.kind === 'blackhole') {
+          state.fighters.forEach((f) => {
+            if (!f.alive) return;
+            const dx = ef.x - f.x; const dy = ef.y - (f.y - 16);
+            const d = Math.hypot(dx, dy);
+            if (d < ef.r * 2.2 && d > 8) { f.vx += (dx / d) * 1400 * dt; f.vy += (dy / d) * 1100 * dt; }
+          });
+        } else if (ef.kind === 'spring') {
+          state.fighters.forEach((f) => { if (f.alive && Math.abs(f.x - ef.x) < ef.r && Math.abs(f.y - ef.y) < 26) { f.vy = -740; SFX.shield(); } });
+        } else if (ef.kind === 'mine') {
+          const owner = state.fighters.find((o) => o.id === ef.ownerId);
+          state.fighters.forEach((f) => {
+            if (f.alive && f.id !== ef.ownerId && !isFriendly(owner, f) && Math.hypot(f.x - ef.x, f.y - ef.y) < ef.r) {
+              applyImpact(owner, f, Math.sign(f.x - ef.x || 1) * 820, -560);
+              SFX.explosion(); spawnParticles(ef.x, ef.y, '#4ade80', 22, 340); ef.life = 0;
+            }
+          });
+        }
+
+        if (ef.life <= 0) state.effects.splice(i, 1);
+      }
+
+      for (let i = state.trails.length - 1; i >= 0; i--) {
+        state.trails[i].life -= dt;
+        if (state.trails[i].life <= 0) state.trails.splice(i, 1);
+      }
+    }
+
+    // =========================================================================
+    // 7. RENDER CANVAS 2D & TỈ SỐ / THANH MÁU TỪNG NGƯỜI CHƠI
+    // =========================================================================
+    function renderGame() {
+      ctx.save();
+      if (state.shakeTimer > 0) {
+        const sx = (Math.random() - 0.5) * state.shakeIntensity * 2;
+        const sy = (Math.random() - 0.5) * state.shakeIntensity * 2;
+        ctx.translate(sx, sy);
+      }
+
+      ctx.clearRect(0, 0, W, H);
+      const { platformW, platformH, platformX, platformY, hazardY } = getArenaGeometry();
+
+      if (state.mapId === 'lava_bridge') {
+        const grad = ctx.createLinearGradient(0, hazardY, 0, H);
+        grad.addColorStop(0, '#ef4444'); grad.addColorStop(0.5, '#f97316'); grad.addColorStop(1, '#7c2d12');
+        ctx.fillStyle = grad; ctx.fillRect(0, hazardY, W, H - hazardY);
+      } else if (state.mapId === 'water_arena') {
+        const grad = ctx.createLinearGradient(0, hazardY, 0, H);
+        grad.addColorStop(0, '#0ea5e9'); grad.addColorStop(1, '#082f49');
+        ctx.fillStyle = grad; ctx.fillRect(0, hazardY, W, H - hazardY);
+      }
+
+      ctx.fillStyle = '#334155';
+      if (state.mapId === 'flat_arena') {
+        ctx.fillRect(40, H - 72, W - 80, 24);
+      } else {
+        ctx.beginPath(); ctx.roundRect(platformX, platformY, platformW, platformH, 10); ctx.fill();
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      state.trails.forEach((tr) => {
+        const alpha = tr.life / tr.maxLife;
+        ctx.save(); ctx.translate(tr.x, tr.y); ctx.rotate(tr.angle);
+        ctx.strokeStyle = tr.color; ctx.globalAlpha = alpha * 0.85; ctx.lineWidth = 10 * alpha;
+        ctx.beginPath(); ctx.arc(0, 0, tr.len * 0.75, -0.75, 0.75); ctx.stroke(); ctx.restore();
+      });
+
+      state.fighters.forEach((f) => { if (f.alive) drawStickman(f); });
+
+      state.projectiles.forEach((p) => {
+        ctx.save(); ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      });
+
+      state.effects.forEach((ef) => {
+        const a = Math.max(0, ef.life / ef.maxLife);
+        ctx.save(); ctx.globalAlpha = a;
+        if (ef.kind === 'particle') {
+          ctx.fillStyle = ef.color; ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2); ctx.fill();
+        } else if (ef.kind === 'ring' || ef.kind === 'nuke') {
+          ctx.strokeStyle = ef.kind === 'nuke' ? '#4ade80' : ef.color;
+          ctx.fillStyle = ef.kind === 'nuke' ? 'rgba(74, 222, 128, 0.25)' : 'transparent';
+          ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.r * (1.2 - a * 0.4), 0, Math.PI * 2);
+          if (ef.kind === 'nuke') ctx.fill(); ctx.stroke();
+        } else if (ef.kind === 'beam') {
+          ctx.translate(ef.x1, ef.y1); ctx.rotate(ef.angle); ctx.fillStyle = ef.color;
+          ctx.fillRect(0, -ef.width / 2, ef.len, ef.width);
+        } else if (ef.kind === 'lightning') {
+          ctx.strokeStyle = '#facc15'; ctx.lineWidth = 5; ctx.beginPath();
+          ctx.moveTo(ef.x, ef.yTop); ctx.lineTo(ef.x - 16, ef.yBot * 0.45); ctx.lineTo(ef.x + 14, ef.yBot * 0.7); ctx.lineTo(ef.x, ef.yBot);
+          ctx.stroke();
+        } else if (ef.kind === 'blackhole') {
+          ctx.fillStyle = '#090d16'; ctx.strokeStyle = '#c084fc'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.r * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        } else if (ef.kind === 'spring' || ef.kind === 'spike' || ef.kind === 'wall' || ef.kind === 'mine') {
+          ctx.fillStyle = ef.color || '#f472b6'; ctx.fillRect(ef.x - 20, ef.y - 16, 40, 16);
+        }
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
+
+    function drawStickman(f) {
+      const s = f.scale;
+      const wobbleOffset = Math.sin(performance.now() * 0.03) * f.ragdollWobble * 0.4;
+      const hipX = f.x; const hipY = f.y - 22 * s;
+      const shoulderX = hipX + f.ragdollTilt * 18 * s + wobbleOffset * 0.3;
+      const shoulderY = hipY - 24 * s;
+      const headX = shoulderX + f.ragdollTilt * 8 * s;
+      const headY = shoulderY - 13 * s;
+
+      ctx.save();
+      ctx.strokeStyle = f.freezeTimer > 0 ? '#67e8f9' : f.color;
+      ctx.lineWidth = Math.max(3, 5.5 * Math.min(1.6, s));
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+      ctx.beginPath(); ctx.arc(headX, headY, 10 * s, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shoulderX, shoulderY); ctx.stroke();
+
+      const stride = Math.sin(f.x * 0.05) * 14 * s;
+      ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(hipX - stride, f.y); ctx.moveTo(hipX, hipY); ctx.lineTo(hipX + stride, f.y); ctx.stroke();
+
+      const w = WEAPONS[f.weaponId] || WEAPONS[0];
+      const wScale = state.modifiers.giantWeapon ? 1.85 : 1.0;
+      const handX = shoulderX + Math.cos(f.aimAngle) * 20 * s;
+      const handY = shoulderY + Math.sin(f.aimAngle) * 20 * s;
+      const tipX = handX + Math.cos(f.aimAngle) * 38 * s * Math.min(1.5, wScale);
+      const tipY = handY + Math.sin(f.aimAngle) * 38 * s * Math.min(1.5, wScale);
+
+      ctx.beginPath(); ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(handX, handY); ctx.stroke();
+
+      ctx.strokeStyle = w.color;
+      ctx.lineWidth = Math.max(3, 5 * Math.min(1.5, s * wScale));
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(tipX, tipY); ctx.stroke();
+
+      if (f.shieldActiveTimer > 0) {
+        ctx.strokeStyle = '#10b981'; ctx.fillStyle = 'rgba(16, 185, 129, 0.16)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(f.x, f.y - 20 * s, 34 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+
+      if (state.hpEnabled) {
+        const hpRatio = Math.max(0, Math.min(1, f.hp / f.maxHp));
+        const barW = f.isBoss ? 110 : 48;
+        const barH = f.isBoss ? 9 : 6;
+        const barX = headX - barW / 2;
+        const barY = headY - (f.isBoss ? 34 : 26) * Math.max(0.8, s);
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'; ctx.fillRect(barX, barY, barW, barH);
+        ctx.fillStyle = f.isBoss ? '#f43f5e' : (hpRatio > 0.5 ? '#22c55e' : hpRatio > 0.25 ? '#eab308' : '#ef4444');
+        ctx.fillRect(barX + 1, barY + 1, (barW - 2) * hpRatio, barH - 2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barW, barH);
+
+        ctx.fillStyle = '#fff'; ctx.font = '700 10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(`${f.hp}/${f.maxHp}`, headX, barY - 3);
+      }
+
+      ctx.fillStyle = '#e2e8f0'; ctx.font = '700 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(f.name, headX, headY - (state.hpEnabled ? 46 : 18) * Math.max(0.85, s));
+
+      ctx.restore();
+    }
+
+    function renderScoreboard() {
+      const sb = document.getElementById('scoreboard');
+      sb.innerHTML = state.fighters.map((f) => {
+        const hpTag = state.hpEnabled ? ` • <span style="color:#4ade80;">${f.hp}/${f.maxHp} HP</span>` : '';
+        return `
+          <div class="score-chip" style="border-left:4px solid ${f.color};">
+            <span>${f.name}</span>
+            <span style="color:#38bdf8;">${f.score} KO</span>
+            ${hpTag}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateHUDCooldowns() {
+      const me = state.fighters.find((f) => f.isLocal);
+      if (!me) return;
+      const setSlot = (elId, cd) => {
+        const el = document.getElementById(elId);
+        let ov = el.querySelector('.cd-overlay');
+        if (cd > 0.05) {
+          if (!ov) { ov = document.createElement('div'); ov.className = 'cd-overlay'; el.appendChild(ov); }
+          ov.textContent = cd.toFixed(1) + 's';
+        } else if (ov) { ov.remove(); }
+      };
+      setSlot('slot-s1', me.cooldowns[1]);
+      setSlot('slot-s2', me.cooldowns[2]);
+      setSlot('slot-s3', me.cooldowns[3]);
+      setSlot('slot-shield', me.shieldCooldown);
+    }
+
+    // =========================================================================
+    // 8. KHỞI CHẠY TRẬN ĐẤU (BOT / BOSS FIGHT / GIẢI TRÍ / MULTIPLAYER)
+    // =========================================================================
+    function enterArenaUI(mapId) {
+      state.mapId = mapId;
+      const mapNames = {
+        lava_bridge: 'Bản đồ: Cầu Dung Nham',
+        water_arena: 'Bản đồ: Sàn Nước Sâu',
+        flat_arena: 'Bản đồ: Sàn Phẳng'
+      };
+      const modePrefix = state.gameModeType === 'boss' ? '👹 BOSS FIGHT • ' : (state.gameModeType === 'fun' ? '🎪 GIẢI TRÍ • ' : '');
+      document.getElementById('mapLabel').textContent = `${modePrefix}${mapNames[mapId] || 'Đấu Trường'}`;
+      document.getElementById('menuLayer').classList.add('hidden');
+      document.getElementById('hud').style.display = 'block';
+      applyControlMode();
+      renderScoreboard();
+    }
+
+    function startBotMatch() {
+      const diff = document.getElementById('botDifficulty').value;
+      const matchType = document.getElementById('botMatchType').value;
+      const mapId = document.getElementById('botMapSelect').value;
+
+      state.mode = 'bot';
+      state.gameModeType = 'duel';
+      state.hpEnabled = document.getElementById('botHpEnabled').checked;
+      state.randomWeapon = false;
+      state.modifiers = { giantWeapon: false, rapidCooldown: false, tinyStickman: false };
+      state.projectiles = []; state.effects = []; state.trails = [];
+
+      const p1 = createFighter({ id: 'local_1', name: state.playerName, color: state.selectedColor, weaponId: state.selectedWeapon, x: W * 0.32, y: H * 0.5, isLocal: true });
+      const bots = [];
+      const botCount = matchType === 'ffa' ? 3 : 1;
+      for (let i = 0; i < botCount; i++) {
+        bots.push(createFighter({ id: 'bot_' + i, name: `Bot ${i + 1} (${diff})`, color: COLORS[(i + 1) % COLORS.length], weaponId: (state.selectedWeapon + i + 3) % WEAPONS.length, x: W * (0.55 + i * 0.1), y: H * 0.45, isBot: true, botDiff: diff }));
+      }
+
+      state.fighters = [p1, ...bots];
+      enterArenaUI(mapId);
+    }
+
+    function startOfflineBossMatch() {
+      const alliesCount = Number(document.getElementById('bossAlliesCount').value);
+      const mapId = document.getElementById('bossMapSelect').value;
+
+      state.mode = 'boss';
+      state.gameModeType = 'boss';
+      state.hpEnabled = document.getElementById('bossPlayerHpEnabled').checked;
+      state.randomWeapon = false;
+      state.modifiers = { giantWeapon: false, rapidCooldown: false, tinyStickman: false };
+      state.projectiles = []; state.effects = []; state.trails = [];
+
+      const p1 = createFighter({ id: 'local_boss_p1', name: state.playerName, color: state.selectedColor, weaponId: state.selectedWeapon, x: W * 0.28, y: H * 0.5, isLocal: true });
+      const allies = [];
+      for (let i = 0; i < alliesCount; i++) {
+        allies.push(createFighter({ id: 'ally_' + i, name: `Đồng minh ${i + 1}`, color: '#4ade80', weaponId: (state.selectedWeapon + i + 2) % WEAPONS.length, x: W * (0.34 + i * 0.06), y: H * 0.48, isBot: true, isAlly: true, botDiff: 'medium' }));
+      }
+      const boss = createFighter({ id: 'titan_boss', name: '👹 TITAN HỦY DIỆT', color: '#f43f5e', weaponId: 1, x: W * 0.68, y: H * 0.45, isBot: true, isBoss: true, maxHp: 80 });
+
+      state.fighters = [p1, ...allies, boss];
+      enterArenaUI(mapId);
+    }
+
+    function startFunMatch() {
+      const mapId = document.getElementById('funMapSelect').value;
+      state.mode = 'fun';
+      state.gameModeType = 'fun';
+      state.hpEnabled = document.getElementById('funHpEnabled').checked;
+      state.modifiers = {
+        giantWeapon: document.getElementById('funGiant').checked,
+        rapidCooldown: document.getElementById('funRapid').checked,
+        tinyStickman: document.getElementById('funTiny').checked
+      };
+      state.randomWeapon = document.getElementById('funRandom').checked;
+      state.projectiles = []; state.effects = []; state.trails = [];
+
+      const p1 = createFighter({ id: 'local_fun', name: state.playerName, color: state.selectedColor, weaponId: state.selectedWeapon, x: W * 0.35, y: H * 0.48, isLocal: true });
+      const bot = createFighter({ id: 'bot_fun', name: 'Fun Bot', color: '#f472b6', weaponId: (state.selectedWeapon + 5) % WEAPONS.length, x: W * 0.65, y: H * 0.48, isBot: true, botDiff: 'medium' });
+
+      state.fighters = [p1, bot];
+      enterArenaUI(mapId);
+    }
+
+    function exitToMenu() {
+      state.mode = 'menu';
+      state.gameModeType = 'duel';
+      state.fighters = [];
+      openScreen('screen-main');
+    }
+
+    // =========================================================================
+    // 9. MULTIPLAYER SOCKET.IO CLIENT + PRE-ROOM SETTINGS SYNC
+    // =========================================================================
+    function ensureSocket() {
+      if (state.socket) return state.socket;
+      if (typeof io === 'undefined') return null;
+      const sock = io();
+      state.socket = sock;
+
+      sock.on('room_error', (msg) => {
+        document.getElementById('multiStatusMsg').textContent = msg;
+      });
+
+      sock.on('room_joined', (room) => {
+        state.room = room;
+        document.getElementById('multiLobbySetup').classList.add('hidden');
+        document.getElementById('multiRoomView').classList.remove('hidden');
+        renderRoomView();
+      });
+
+      sock.on('room_updated', (room) => {
+        state.room = room;
+        renderRoomView();
+      });
+
+      sock.on('match_started', (room) => {
+        state.room = room;
+        state.mode = 'multi';
+        state.gameModeType = room.settings.gameModeType || 'duel';
+        state.hpEnabled = room.settings.hpEnabled !== false;
+        state.modifiers = { ...room.settings.modifiers };
+        state.randomWeapon = !!room.settings.randomWeapon;
+        state.projectiles = []; state.effects = []; state.trails = [];
+
+        state.fighters = room.players.map((rp, idx) => createFighter({
+          id: rp.id,
+          name: rp.name,
+          color: rp.color,
+          weaponId: rp.weaponId,
+          score: rp.score || 0,
+          hp: rp.hp ?? 25,
+          maxHp: rp.maxHp ?? 25,
+          x: W * (0.22 + idx * 0.14),
+          y: H * 0.48,
+          isLocal: rp.id === sock.id
+        }));
+
+        if (state.gameModeType === 'boss') {
+          state.fighters.push(createFighter({
+            id: 'multi_titan_boss',
+            name: '👹 TITAN HỦY DIỆT',
+            color: '#f43f5e',
+            weaponId: 1,
+            x: W * 0.75,
+            y: H * 0.45,
+            isBot: room.hostId === sock.id,
+            isBoss: true,
+            maxHp: 80 + room.players.length * 25
+          }));
+        }
+
+        enterArenaUI(room.settings.mapId || 'lava_bridge');
+      });
+
+      sock.on('world_snapshot', (snap) => {
+        if (state.mode !== 'multi') return;
+        snap.players.forEach((sp) => {
+          if (sp.id === sock.id) return;
+          const targetF = state.fighters.find((f) => f.id === sp.id);
+          if (targetF) {
+            targetF.x += (sp.x - targetF.x) * 0.45;
+            targetF.y += (sp.y - targetF.y) * 0.45;
+            targetF.vx = sp.vx;
+            targetF.vy = sp.vy;
+            targetF.aimAngle = sp.aimAngle;
+            targetF.alive = sp.alive;
+            targetF.score = sp.score;
+            if (typeof sp.hp === 'number') targetF.hp = sp.hp;
+            if (sp.shieldActive) targetF.shieldActiveTimer = 0.2;
+          }
+        });
+        renderScoreboard();
+      });
+
+      sock.on('remote_skill_cast', ({ casterId, slot, aimAngle }) => {
+        const caster = state.fighters.find((f) => f.id === casterId);
+        if (caster) {
+          caster.aimAngle = aimAngle;
+          caster.cooldowns[slot] = 0;
+          castSkill(caster, slot);
+        }
+      });
+
+      sock.on('ko_event', ({ victimId, scores }) => {
+        const victim = state.fighters.find((f) => f.id === victimId);
+        if (victim) {
+          victim.alive = false;
+          victim.hp = victim.maxHp;
+          setTimeout(() => {
+            if (state.mode === 'multi') {
+              victim.alive = true;
+              victim.hp = victim.maxHp;
+              victim.x = W * (0.3 + Math.random() * 0.4);
+              victim.y = H * 0.42;
+              victim.vx = 0; victim.vy = 0;
+            }
+          }, 2000);
+        }
+        scores.forEach((sc) => {
+          const f = state.fighters.find((pl) => pl.id === sc.id);
+          if (f) {
+            f.score = sc.score;
+            f.weaponId = sc.weaponId;
+            if (typeof sc.hp === 'number') f.hp = sc.hp;
+          }
+        });
+        renderScoreboard();
+      });
+
+      return sock;
+    }
+
+    function createOnlineRoom() {
+      const sock = ensureSocket();
+      state.playerName = document.getElementById('playerNameInput').value.trim() || 'Player 1';
+      if (!sock) {
+        document.getElementById('multiStatusMsg').textContent = 'Hãy chạy server Node.js (npm start) để chơi trực tuyến!';
+        return;
+      }
+
+      const preSettings = {
+        gameModeType: document.getElementById('createGameMode').value,
+        mapId: document.getElementById('createMapSelect').value,
+        hpEnabled: document.getElementById('createHpEnabled').checked,
+        randomWeapon: document.getElementById('createRandomWeapon').checked,
+        modifiers: {
+          giantWeapon: document.getElementById('createModGiant').checked,
+          rapidCooldown: document.getElementById('createModRapid').checked,
+          tinyStickman: document.getElementById('createModTiny').checked
+        }
+      };
+
+      sock.emit('create_room', {
+        name: state.playerName,
+        color: state.selectedColor,
+        weaponId: state.selectedWeapon,
+        settings: preSettings
+      });
+    }
+
+    function joinOnlineRoom() {
+      const sock = ensureSocket();
+      state.playerName = document.getElementById('playerNameInput').value.trim() || 'Player';
+      const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+      if (!sock) {
+        document.getElementById('multiStatusMsg').textContent = 'Hãy chạy server Node.js (npm start) để chơi trực tuyến!';
+        return;
+      }
+      sock.emit('join_room', {
+        code,
+        name: state.playerName,
+        color: state.selectedColor,
+        weaponId: state.selectedWeapon
+      });
+    }
+
+    function leaveOnlineRoom() {
+      if (state.socket) state.socket.emit('leave_room');
+      state.room = null;
+      document.getElementById('multiRoomView').classList.add('hidden');
+      document.getElementById('multiLobbySetup').classList.remove('hidden');
+    }
+
+    function syncHostSettings() {
+      if (!state.room || !state.socket || state.room.hostId !== state.socket.id) return;
+      state.socket.emit('update_room_settings', {
+        gameModeType: document.getElementById('multiGameMode').value,
+        mapId: document.getElementById('multiMapSelect').value,
+        hpEnabled: document.getElementById('optHpEnabled').checked,
+        randomWeapon: document.getElementById('optRandomWeapon').checked,
+        modifiers: {
+          giantWeapon: document.getElementById('optModGiant').checked,
+          rapidCooldown: document.getElementById('optModRapid').checked,
+          tinyStickman: document.getElementById('optModTiny').checked
+        }
+      });
+    }
+
+    function emitStartMatch() {
+      if (state.room && state.socket && state.room.hostId === state.socket.id) {
+        state.socket.emit('start_match');
+      }
+    }
+
+    function renderRoomView() {
+      const r = state.room;
+      if (!r || !state.socket) return;
+      document.getElementById('roomCodeDisplay').textContent = r.code;
+      const isHost = r.hostId === state.socket.id;
+      document.getElementById('hostRoomOptions').style.pointerEvents = isHost ? 'auto' : 'none';
+      document.getElementById('hostRoomOptions').style.opacity = isHost ? '1' : '0.65';
+      document.getElementById('btnStartMulti').style.display = isHost ? 'block' : 'none';
+
+      // Đồng bộ UI của phòng với settings hiện tại của phòng
+      document.getElementById('multiGameMode').value = r.settings.gameModeType || 'duel';
+      document.getElementById('multiMapSelect').value = r.settings.mapId || 'lava_bridge';
+      document.getElementById('optHpEnabled').checked = r.settings.hpEnabled !== false;
+      document.getElementById('optRandomWeapon').checked = !!r.settings.randomWeapon;
+      document.getElementById('optModGiant').checked = !!r.settings.modifiers?.giantWeapon;
+      document.getElementById('optModRapid').checked = !!r.settings.modifiers?.rapidCooldown;
+      document.getElementById('optModTiny').checked = !!r.settings.modifiers?.tinyStickman;
+
+      const modeLabels = { duel: 'Đối Kháng', boss: 'Boss Fight', fun: 'Giải Trí' };
+      document.getElementById('roomPlayerList').innerHTML = `
+        <div style="margin-bottom:8px;font-size:0.84rem;color:#7dd3fc;">
+          Chế độ: <strong>${modeLabels[r.settings.gameModeType] || 'Đối Kháng'}</strong> •
+          Máu: <strong>${r.settings.hpEnabled !== false ? 'Có (25 HP)' : 'Không máu'}</strong>
+        </div>
+        ${r.players.map((p, idx) => `
+          <div class="row" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+            <span><strong style="color:${p.color};">Slot ${idx + 1}:</strong> ${p.name} ${p.id === r.hostId ? '👑 (Chủ phòng)' : ''}</span>
+            <small style="color:#94a3b8;">${WEAPONS[p.weaponId]?.name || ''}</small>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    // =========================================================================
+    // 10. VÒNG LẶP CHÍNH 60 FPS
+    // =========================================================================
+    let lastTime = performance.now();
+    function gameLoop(now) {
+      const rawDt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (state.shakeTimer > 0) {
+        state.shakeTimer -= rawDt;
+        if (state.shakeTimer <= 0) state.shakeIntensity = 0;
+      }
+
+      if (state.timeFreezeTimer > 0) {
+        state.timeFreezeTimer -= rawDt;
+      }
+
+      if (state.mode !== 'menu') {
+        const simDt = state.timeFreezeTimer > 0 ? rawDt * 0.15 : rawDt;
+        updateFighters(simDt);
+        updateProjectilesAndEffects(simDt);
+        renderGame();
+        updateHUDCooldowns();
+      } else {
+        ctx.clearRect(0, 0, W, H);
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    initUI();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
